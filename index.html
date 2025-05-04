@@ -3,25 +3,45 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ZMANELI - Daily Zmanim for Montreal</title>
+    <title>ZMANELI - Daily Zmanim</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <header>
         <h1>ZMANELI</h1>
-        <p>Daily Zmanim for Montreal, QC</p>
-    </header>
+        <p id="location-subtitle">Daily Zmanim</p> </header>
+
+    <section class="location-selector">
+        <label for="city-select">Select Location:</label>
+        <select id="city-select">
+            <optgroup label="Quebec">
+                <option value="6077243" data-tz="America/Toronto" selected>Montreal</option>
+                </optgroup>
+            <optgroup label="Ontario">
+                <option value="6167865" data-tz="America/Toronto">Toronto</option>
+                <option value="6094817" data-tz="America/Toronto">Ottawa</option>
+                 </optgroup>
+             <optgroup label="British Columbia">
+                <option value="6173331" data-tz="America/Vancouver">Vancouver</option>
+                 </optgroup>
+             <optgroup label="Alberta">
+                <option value="5913490" data-tz="America/Edmonton">Calgary</option>
+                 </optgroup>
+             <optgroup label="Manitoba">
+                <option value="6183235" data-tz="America/Winnipeg">Winnipeg</option>
+                 </optgroup>
+            </select>
+    </section>
 
     <main id="zmanim-container">
-        <p>Loading zmanim...</p>
+        <p>Select a location to load zmanim...</p>
     </main>
 
     <footer>
         <p>Created by Eliahou Roffe</p>
-        <p>Using kosher-zmanim library. Times are approximate.</p>
+        <p>Uses Hebcal API. Times are approximate.</p>
     </footer>
 
-    <script src="https://cdn.jsdelivr.net/npm/kosher-zmanim@latest/dist/bundle/KosherZmanim.min.js"></script>
     <script src="script.js"></script>
 </body>
 </html>
