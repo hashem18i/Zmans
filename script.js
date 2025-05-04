@@ -9,149 +9,155 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
     }
 
-    // --- Function to Fetch and Display Zmanim ---
-    // Now accepts geonameid and timezone as parameters
     async function loadZmanim(geonameid, timeZoneId, cityName) {
         try {
-            // Update subtitle
             locationSubtitle.textContent = `Daily Zmanim for ${cityName}`;
-            container.innerHTML = `<p>Loading zmanim for ${cityName}...</p>`; // Update status
+            container.innerHTML = `<p>Loading zmanim for ${cityName}...</p>`;
+            console.log(`Attempting to load zmanim for: ${cityName} (geonameid: ${geonameid}, tzid: ${timeZoneId})`);
 
-            // Calculate start and end dates (Today + 7 days = 8 days total)
             const today = new Date();
             const endDate = new Date(today);
             endDate.setDate(today.getDate() + 7);
-
-            // Format dates as YYYY-MM-DD for Hebcal API
             const formatDate = (date) => date.toISOString().split('T')[0];
             const startDateStr = formatDate(today);
             const endDateStr = formatDate(endDate);
 
-            // Construct Hebcal API URL using selected geonameid
-            // Requests JSON format, geonameid, start/end dates,
-            // Ashkenazi transliterations (lg=s), Havdalah 50 min (m=50), turns off leyning
-            // Use tzid for accuracy if available
             const hebcalURL = `https://www.hebcal.com/hebcal?v=1&cfg=json&geonameid=${geonameid}&start=${startDateStr}&end=${endDateStr}&lg=s&m=50&leyning=off&tzid=${timeZoneId}`;
+            console.log("Calling Hebcal API URL:", hebcalURL); // Log the URL
 
-            const response = await fetch(hebcalURL);
-            if (!response.ok) {
-                // Try fetching without tzid as a fallback for potentially unsupported IDs
-                 const fallbackURL = `https://www.hebcal.com/hebcal?v=1&cfg=json&geonameid=${geonameid}&start=${startDateStr}&end=${endDateStr}&lg=s&m=50&leyning=off`;
-                 console.warn(`Initial fetch failed with tzid=${timeZoneId}, trying fallback: ${fallbackURL}`);
-                 const fallbackResponse = await fetch(fallbackURL);
-                 if (!fallbackResponse.ok) {
-                    throw new Error(`HTTP error! status: ${fallbackResponse.status} (also failed without timezone)`);
+            let response;
+            let data;
+            try {
+                 response = await fetch(hebcalURL);
+                 if (!response.ok) {
+                    console.warn(`Initial fetch failed with status ${response.status} for URL: ${hebcalURL}. Trying fallback without tzid.`);
+                    const fallbackURL = `https://www.hebcal.com/hebcal?v=1&cfg=json&geonameid=${geonameid}&start=${startDateStr}&end=${endDateStr}&lg=s&m=50&leyning=off`;
+                    console.log("Calling Hebcal API Fallback URL:", fallbackURL); // Log Fallback URL
+                    response = await fetch(fallbackURL); // Assign to response to check ok status below
+                     if (!response.ok) {
+                         throw new Error(`HTTP error! Fallback also failed with status: ${response.status}`);
+                     }
+                     console.log("Fallback fetch successful.");
                  }
-                 console.log("Fallback fetch successful.");
-                 data = await fallbackResponse.json();
-
-            } else {
                  data = await response.json();
+
+            } catch(fetchError) {
+                 console.error("Fetch failed:", fetchError);
+                 throw fetchError; // Re-throw to be caught by outer catch block
             }
 
 
+            console.log("Raw data received from Hebcal:", JSON.stringify(data, null, 2)); // Log the raw response
+
             if (!data || !data.items) {
+                 console.error("Invalid or empty data received from Hebcal API.");
                  throw new Error('Invalid data received from Hebcal API.');
             }
 
-            // --- Process Hebcal Data ---
-            const dailyData = {}; // Object to hold events/zmanim grouped by date YYYY-MM-DD
-
-            data.items.forEach(item => {
+            const dailyData = {};
+            console.log("Processing Hebcal items...");
+            data.items.forEach((item, index) => {
+                // console.log(`Item ${index}:`, JSON.stringify(item)); // Optional: Log every single item if needed
                 const itemDateStr = item.date.substring(0, 10);
                 if (!dailyData[itemDateStr]) {
                     dailyData[itemDateStr] = { zmanim: [], events: [] };
                 }
 
                 if (item.category === 'zmanim') {
-                     // Use specified timezone for time formatting
                     const time = new Date(item.date).toLocaleTimeString('en-US', {
                         hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true, timeZone: timeZoneId
                     });
-                    dailyData[itemDateStr].zmanim.push({ name: item.title, time: time, dateObj: new Date(item.date) }); // Store Date object for sorting
+                    dailyData[itemDateStr].zmanim.push({ name: item.title, time: time, dateObj: new Date(item.date) });
                 } else if (item.category === 'parashat' || item.category === 'holiday') {
                      let eventTitle = item.title;
                      if (item.hebrew) eventTitle += ` (${item.hebrew})`;
                      dailyData[itemDateStr].events.push(eventTitle);
                 }
             });
+            console.log("Processed daily data structure:", JSON.stringify(dailyData, null, 2)); // Log the processed structure
 
             // Sort zmanim chronologically within each day
             for (const dateStr in dailyData) {
                 dailyData[dateStr].zmanim.sort((a, b) => a.dateObj - b.dateObj);
             }
+            console.log("Sorted daily data structure:", JSON.stringify(dailyData, null, 2)); // Log after sorting
 
-            // --- Display Processed Data ---
-            container.innerHTML = ''; // Clear loading message
 
+            container.innerHTML = '';
             const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: timeZoneId };
+            console.log("Displaying data for 8 days...");
 
             for (let i = 0; i < 8; i++) {
                 const currentDate = new Date(today);
                 currentDate.setDate(today.getDate() + i);
                 const currentDateStr = formatDate(currentDate);
+                // console.log(`Checking display for date: ${currentDateStr}`); // Optional: Log date being displayed
 
                 const dayDiv = document.createElement('div');
                 dayDiv.className = 'day-zmanim';
-
                 const dateHeading = document.createElement('h2');
-                 // Display date using the location's timezone
                 dateHeading.textContent = currentDate.toLocaleDateString('en-US', dateOptions);
                 dayDiv.appendChild(dateHeading);
 
-                // Display Events (Parsha/Holidays)
                 if (dailyData[currentDateStr] && dailyData[currentDateStr].events.length > 0) {
                     const eventsP = document.createElement('p');
                     eventsP.style.fontWeight = 'bold';
-                    eventsP.style.color = '#dc3545'; // Reddish color
+                    eventsP.style.color = '#dc3545';
                     eventsP.innerHTML = dailyData[currentDateStr].events.join('<br>');
                     dayDiv.appendChild(eventsP);
                 }
 
-                // Display Zmanim
                 const zmanimList = document.createElement('ul');
+                let zmanimFoundForDay = false; // Flag to track if we add any zmanim LI elements
                 if (dailyData[currentDateStr] && dailyData[currentDateStr].zmanim.length > 0) {
-                     const commonZmanimPrefixes = [ // Match start of Hebcal titles
+                     const commonZmanimPrefixes = [
                         "Alot haShachar", "Sunrise", "Sof Zman Shma", "Sof Zman Tfila",
                         "Chatzot", "Mincha Gedola", "Mincha Ketana", "Plag haMincha",
                         "Candle lighting", "Sunset", "Tz'et haKochavim"
                     ];
+                     // console.log(`Processing ${dailyData[currentDateStr].zmanim.length} zmanim for ${currentDateStr}`); // Optional
                     dailyData[currentDateStr].zmanim.forEach(zman => {
+                         // console.log(` -- Checking zman: ${zman.name}`); // Optional
                          if (commonZmanimPrefixes.some(prefix => zman.name.startsWith(prefix))) {
+                            // console.log(`    -- Displaying: ${zman.name}`); // Optional
                             const listItem = document.createElement('li');
                             listItem.innerHTML = `<strong>${zman.name}:</strong> <span>${zman.time}</span>`;
                             zmanimList.appendChild(listItem);
+                            zmanimFoundForDay = true; // Mark that we found at least one zman
+                         } else {
+                            // console.log(`    -- Skipping (filter): ${zman.name}`); // Optional
                          }
                     });
-                     if (zmanimList.children.length === 0) { // Handle case where filtering removes all zmanim
-                        const listItem = document.createElement('li');
-                        listItem.textContent = 'No standard zmanim data found for this day.';
-                        zmanimList.appendChild(listItem);
-                     }
-                } else {
+                }
+
+                // If NO zmanim were added to the list (either none existed or all were filtered out)
+                if (!zmanimFoundForDay) {
+                    // console.log(`No displayable zmanim found for ${currentDateStr}, adding 'No data' message.`); // Optional
                     const listItem = document.createElement('li');
-                    listItem.textContent = 'No zmanim data available for this day.';
+                    const reason = (dailyData[currentDateStr] && dailyData[currentDateStr].zmanim.length > 0)
+                        ? ' (filtered)' // Some zmanim existed but were filtered out
+                        : ''; // No zmanim found at all for this date in the data
+                    listItem.textContent = `No standard zmanim data available for this day${reason}.`;
                     zmanimList.appendChild(listItem);
                 }
+
                 dayDiv.appendChild(zmanimList);
                 container.appendChild(dayDiv);
             }
+            console.log("Display update complete.");
 
         } catch (error) {
             console.error(`Error loading zmanim for ${cityName} (geonameid: ${geonameid}):`, error);
             container.innerHTML = `<p style="color: red;">Could not load Zmanim data for ${cityName}. Error: ${error.message}. Check the console (F12).</p>`;
-             // Reset subtitle if loading fails
-             locationSubtitle.textContent = `Daily Zmanim`;
-
+            locationSubtitle.textContent = `Daily Zmanim`;
         }
     }
 
-    // --- Event Listener for Dropdown Change ---
     citySelect.addEventListener('change', (event) => {
         const selectedOption = event.target.selectedOptions[0];
         const geonameid = selectedOption.value;
         const cityName = selectedOption.text;
-        const timeZoneId = selectedOption.dataset.tz; // Get timezone from data attribute
+        const timeZoneId = selectedOption.dataset.tz;
         if (geonameid && timeZoneId) {
             loadZmanim(geonameid, timeZoneId, cityName);
         } else {
@@ -161,8 +167,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // --- Initial Load on Page Load ---
-    // Trigger the 'change' event manually to load the default selected city
+    // Initial Load
+    console.log("Initial page load: Triggering data load for default city.");
     citySelect.dispatchEvent(new Event('change'));
-
 });
